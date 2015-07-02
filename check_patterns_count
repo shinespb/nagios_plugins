@@ -1,0 +1,127 @@
+#! /usr/bin/perl -w
+
+use strict;
+use English;
+use Getopt::Long;
+use vars qw($PROGNAME);
+use lib "/usr/lib/nagios/plugins";
+use utils qw (%ERRORS &print_revision &support);
+
+sub print_help ();
+sub print_usage ();
+
+my ($opt_c, $opt_d, $opt_w, $opt_h, $opt_V, $opt_t);
+my $result;
+
+$PROGNAME="check_patterns_count";
+
+$opt_w = 100;
+$opt_c = 50;
+$opt_d = "/events_storage/phishing_detected/";
+$opt_t = 5;
+
+Getopt::Long::Configure('bundling');
+GetOptions(
+	"V"   => \$opt_V, "version"	=> \$opt_V,
+	"h"   => \$opt_h, "help"	=> \$opt_h,
+	"d=s" => \$opt_d, "dir"	=> \$opt_d,
+	"t=f" => \$opt_t, "time" => \$opt_t,
+	"w=f" => \$opt_w, "warning-filecount=f" => \$opt_w,
+	"c=f" => \$opt_c, "critical-filecount=f" => \$opt_c);
+
+if ($opt_V) {
+	print_revision($PROGNAME, '0.1');
+	exit $ERRORS{'OK'};
+}
+
+if ($opt_h) {
+	print_help();
+	exit $ERRORS{'OK'};
+}
+
+$opt_d = shift unless ($opt_d);
+
+if (! $opt_d) {
+	print "PATTERNS UNKNOWN: No base directory specified\n";
+	exit $ERRORS{'UNKNOWN'};
+}
+
+if (-f $opt_d){
+	print "PATTERNS CRITICAL: given path \"$opt_d\" is file. Must be a directory.\n";
+	exit $ERRORS{'CRITICAL'};	
+}
+
+# Check that file exists (can be directory or link)
+unless (-d $opt_d) {
+	print "PATTERNS CRITICAL: Directory \"$opt_d\" not found.\n";
+	exit $ERRORS{'CRITICAL'};
+}
+
+my $files = countfiles();
+
+$result = 'OK';
+
+#check that files count for warning
+if ($files < $opt_c){
+	print "PATTERNS CRITICAL: Total patterns \"$files\" for last $opt_t minutes\n";
+	$result = 'CRITICAL';
+}
+elsif ($files < $opt_w){
+	print "PATTERNS WARNING: Total patterns \"$files\" for last $opt_t minutes\n";
+	$result = 'WARNING';
+}
+else {
+	print "PATTERNS $result\n";
+}
+
+exit $ERRORS{$result};
+
+sub countfiles {
+	my @dirlist = getdirlist($opt_t);
+	my (@arr, $filetotal);
+	for (my $i=0; $i<=$#dirlist; $i++){
+		opendir(DIR, $dirlist[$i]);
+		push @arr, grep { !/^\.+$/ & -f "$dirlist[$i]/$_"} readdir(DIR);
+		closedir(DIR);
+	}
+	return $filetotal = $#arr + 1 
+}
+
+sub getdirlist {
+    my $minback = shift;
+    my ($timeback, @total);
+    my $now = time;
+    $timeback = $now;
+    for (my $i=0; $i<$minback; $i++){
+		$timeback = $now - ($i*60);
+		my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime($timeback);
+		$year += 1900;
+		$mon = sprintf("%02d", $mon+1);
+		$mday = sprintf("%02d", $mday);
+		$hour = sprintf("%02d", $hour);
+		$min = sprintf("%02d", $min);
+		my $path = "$opt_d/$year/$mon/$mday/$hour/$min";
+		if (-d $path){
+		  push @total, $path;
+		}
+    }
+    if (!@total) {
+		print "PATTERNS CRITICAL: no directories for this time\n";
+		exit $ERRORS{'CRITICAL'};
+	}
+	else { return @total };
+}
+
+sub print_usage () {
+	print "Usage:\n";
+	print "  $PROGNAME [-w <files>] [-c <files>] -d <directory>\n";
+	print "  $PROGNAME [-h | --help]\n";
+	print "  $PROGNAME [-V | --version]\n";
+}
+
+sub print_help () {
+	print_revision($PROGNAME, '0.1');
+	print_usage();
+	print "\n";
+	support();
+}
