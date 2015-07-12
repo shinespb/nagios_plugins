@@ -1,4 +1,4 @@
-#!/Library/Frameworks/Python.framework/Versions/3.4/bin/python3
+#!/usr/bin/python3
 import argparse
 import sys, os
 import datetime, time
@@ -7,10 +7,11 @@ import datetime, time
 warning = 100
 critical = 50
 time = 5
+path = '/events_storage/phishing_detected'
 
 def args_parse():
     parser = argparse.ArgumentParser()
-    parser.add_argument("path", type=str, help="path to directory")
+    parser.add_argument("-d", "--directory", type=str, help="path to directory")
     parser.add_argument("-w", "--warning", type=int, default=False, help="warning files count")
     parser.add_argument("-c", "--critical", type=int, default=False, help="critical files count")
     parser.add_argument("-t", "--time", type=int, default=False, help="Time count")
@@ -32,7 +33,7 @@ def getdirlist(path, time):
             [files.append(cdir+name) for name in os.listdir(cdir) if os.path.isfile(os.path.join(cdir, name))]
     return files
 
-def main(warning, critical, time):
+def main(warning, critical, time, path):
     args = args_parse()
 
     if args.warning:
@@ -41,15 +42,15 @@ def main(warning, critical, time):
         critical = args.critical
     if args.time:
         time = args.time
-    if args.path:
-        path = args.path
+    if args.directory:
+        path = args.directory
 
     """ check base path """
     if not os.path.isdir(path):
         print("PATTERNS CRITICAL: Directory {} does not found".format(path))
         sys.exit(2)
 
-    totalfiles = getdirlist(args.path, time)
+    totalfiles = getdirlist(path, time)
     if len(totalfiles) < critical:
         print("PATTERNS CRITICAL: Total patterns {} for last {} minutes".format(len(totalfiles), time))
         sys.exit(2)
@@ -72,4 +73,4 @@ def main(warning, critical, time):
 
 
 if __name__ == "__main__":
-    main(warning, critical, time)
+    main(warning, critical, time, path)
